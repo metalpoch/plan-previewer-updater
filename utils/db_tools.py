@@ -49,7 +49,7 @@ def aggregate_creator(firstday: str, lastday: str, interfaces: list[str]) -> lis
     ]
 
 
-def extract_data(data: dict) -> list:
+def extract_data(data: dict) -> tuple:
     """
     Extracts the interfaces from the data.
 
@@ -57,15 +57,15 @@ def extract_data(data: dict) -> list:
     data (dict): The data to extract interfaces from.
 
     Returns:
-    list: The list of interfaces.
+    tuple: The list of interfaces and string of Venezuela state.
     """
-    interfaces, lag = data.get("interfaces"), data.get("lag")
+    interfaces, lag, state = data.get("interfaces"), data.get("lag"), data.get("state")
     if interfaces is None:
-        return []
+        return [], state
 
     if lag:
         interfaces.append(lag)
-    return interfaces
+    return interfaces, state
 
 
 def avg_traffic(traffic: list[list[float]]) -> float:

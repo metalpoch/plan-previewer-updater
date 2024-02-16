@@ -44,17 +44,18 @@ def get_aba_data(filename: str) -> pd.DataFrame:
             "Nrpname",
             "Location",
             "Downstream",
-            "Status",
+            # "Status",
             "Cantidad",
         ],
     )
     df_base["bras"] = df_base["Location"] + "-" + df_base["Nrpname"]
     df_base = df_base[
-        ["bras", "DSLAMIP", "Coid", "Name Coid", "Downstream", "Status", "Cantidad"]
+        # ["bras", "DSLAMIP", "Coid", "Name Coid", "Downstream", "Status", "Cantidad"]
+        ["bras", "DSLAMIP", "Coid", "Name Coid", "Downstream", "Cantidad"]
     ]
     df_base["DSLAMIP"] = df_base["DSLAMIP"].apply(__string_to_ip)
 
-    df_base = df_base[df_base["Status"] == "ACTIVO"]
+    # df_base = df_base[df_base["Status"] == "ACTIVO"]
 
     df = df_base.groupby(["DSLAMIP", "Downstream"])["Cantidad"].sum().reset_index()
     df["Downstream"] = df["Downstream"] / 1024

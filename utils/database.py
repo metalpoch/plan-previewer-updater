@@ -34,13 +34,29 @@ def update_traffic(firstday: str, lastday: str) -> None:
     client = MongoClient(MONGO_URI_TACCESS)
     db = client["taccess"]
     data_interfaces = list(db["ipInterfacesEhealth"].find())
-    interfaces = list(map(extract_data, data_interfaces))
+    # interfaces, state = list(map(extract_data, data_interfaces))
+    interfaces = []
+    states_by_interface = {}
+    for interface_and_state in list(map(extract_data, data_interfaces)):
+        state = interface_and_state[1]
+        interface_list = interface_and_state[0]
+
+        if not states_by_interface.get(state):
+            states_by_interface[state] = []
+
+        states_by_interface[state].extend(interface_list)
+
+        interfaces.append(interface_list)
+
     interfaces = list(chain.from_iterable(interfaces))
 
     pipeline_aggregate = aggregate_creator(firstday, lastday, interfaces)
 
-    data = list(db.ehealth3.aggregate(pipeline=pipeline_aggregate)) + list(
-        db.ehealth2.aggregate(pipeline=pipeline_aggregate)
+    data = (
+        list(db.ehealth1.aggregate(pipeline=pipeline_aggregate))
+        + list(db.ehealth2.aggregate(pipeline=pipeline_aggregate))
+        + list(db.ehealth3.aggregate(pipeline=pipeline_aggregate))
+        + list(db.ehealth4.aggregate(pipeline=pipeline_aggregate))
     )
 
     client.close()
@@ -69,9 +85,17 @@ def update_traffic(firstday: str, lastday: str) -> None:
             )
         )[0]["ip"]
 
+        # Get state:
+        state = None
+        for key, value in states_by_interface.items():
+            if interface in value:
+                state = key
+                break
+
         return {
             "ip": ip,
             "interface": interface,
+            "state": state,
             "group": group,
             "in_avg": avg_traffic(_in),
             "out_avg": avg_traffic(out),
@@ -130,7 +154,7 @@ def __traffic_scanner(data: dict) -> dict:
     """
     in_avg, out_avg, bw = 0, 0, 0
     in_avg_lag, out_avg_lag, bw_lag = 0, 0, 0
-    interface, interface_lag = "", ""
+    interface, interface_lag, state = "", "", ""
 
     for traffic in data["traffic"]:
         is_lag = __lag_scanner(traffic["interface"])
@@ -144,6 +168,7 @@ def __traffic_scanner(data: dict) -> dict:
             out_avg += traffic["out_avg"]
             bw += traffic["bandwidth"]
             interface = traffic["interface"]
+        state = traffic["state"]
 
     max_bits_interfaces = max(in_avg, out_avg)
     max_bits_lag = max(in_avg_lag, out_avg_lag)
@@ -152,6 +177,7 @@ def __traffic_scanner(data: dict) -> dict:
         "ip": data["ip"],
         "theoretical_traffic_mbps": data["theoretical_traffic"],
         "clients": data["clients"],
+        "state": state,
     }
 
     for clients_by_plan in PLANS_COLUMNS.values():
@@ -176,86 +202,29 @@ def __traffic_scanner(data: dict) -> dict:
     result["media"] = max_traffic / result["clients"]
     result["factor"] = max_traffic / result["theoretical_traffic_mbps"]
 
-    last_plan = list(PLANS_COLUMNS.values())[-1]
-    result["upgrade"] = __change_plan(result, last_plan)
+    for plan in PLANS_COLUMNS.values():
+        plan_mbps = __str_plan_to_float(plan)
+        clients = result[plan]
+        result[f"factor_{plan.replace('clients_', '')}"] = (
+            clients * plan_mbps * result["factor"]
+        )
+
     return result
 
 
-def __change_plan(data: dict, base_plan: str) -> dict:
+def __str_plan_to_float(string: str) -> float:
     """
-    Changes the plan based on the data and the base plan.
+    Converts a plan from string format to float format.
 
     Parameters:
-    data (dict): The data to use for changing the plan.
-    base_plan (str): The base plan to change from.
+    string (str): The plan in string format.
 
     Returns:
-    dict: The results of the plan change.
+    float: The plan in float format.
     """
-
-    def str_plan_to_float(string: str) -> float:
-        """
-        Converts a plan from string format to float format.
-
-        Parameters:
-        string (str): The plan in string format.
-
-        Returns:
-        float: The plan in float format.
-        """
-        idx = list(PLANS_COLUMNS.values()).index(string)
-        plans = list(PLANS_COLUMNS.keys())
-        return plans[idx]
-
-    columns_to_delete = [
-        "ip",
-        "theoretical_traffic_mbps",
-        "clients",
-        "element",
-        "in_avg_mbps",
-        "out_avg_mbps",
-        "bandwidth_mbps",
-        "media",
-        "factor",
-    ]
-
-    plans = list(PLANS_COLUMNS.values())
-    plan_idx = plans.index(base_plan)
-    possible_plans = list(
-        map(lambda x: plans[x], filter(lambda idx: idx <= plan_idx, range(len(plans))))
-    )[::-1]
-
-    result = {}
-
-    for plan in possible_plans:
-        idx = plans.index(plan)
-        plans_filter = filter(lambda x: x < idx, range(len(plans)))
-        other_plans = list(map(lambda x: plans[x], plans_filter))
-
-        tmp = data.copy()
-        tmp["benefited_clients"] = 0
-        tmp["new_theoretical_traffic_mbps"] = 0
-        for old_plan in other_plans:
-            tmp["benefited_clients"] += data[old_plan]
-            tmp[plan] += data[old_plan]
-            tmp[old_plan] = 0
-
-        for field in plans:
-            float_plan = str_plan_to_float(field)
-            new_traffic_plans = tmp[field] * float_plan * tmp["factor"]
-            tmp[f"factor_{field}"] = new_traffic_plans
-            tmp["new_theoretical_traffic_mbps"] += new_traffic_plans
-
-        bw = tmp["bandwidth_mbps"]
-        is_upgradable = bw * 0.8 >= tmp["new_theoretical_traffic_mbps"]  # 20%
-        tmp["is_upgradable"] = True if is_upgradable else False
-
-        for key in columns_to_delete:
-            del tmp[key]
-
-        result[f"{plan.replace('clients_', '')}"] = tmp
-
-    return result
+    idx = list(PLANS_COLUMNS.values()).index(string)
+    plans = list(PLANS_COLUMNS.keys())
+    return plans[idx]
 
 
 def update_traffic_aba() -> None:
