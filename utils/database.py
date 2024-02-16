@@ -34,7 +34,6 @@ def update_traffic(firstday: str, lastday: str) -> None:
     client = MongoClient(MONGO_URI_TACCESS)
     db = client["taccess"]
     data_interfaces = list(db["ipInterfacesEhealth"].find())
-    # interfaces, state = list(map(extract_data, data_interfaces))
     interfaces = []
     states_by_interface = {}
     for interface_and_state in list(map(extract_data, data_interfaces)):
@@ -61,7 +60,7 @@ def update_traffic(firstday: str, lastday: str) -> None:
 
     client.close()
 
-    def __get_summary(element: dict) -> dict:
+    def __get_summary(element: dict) -> dict | None:
         """
         Returns a summary of the data for an element.
 
@@ -85,12 +84,17 @@ def update_traffic(firstday: str, lastday: str) -> None:
             )
         )[0]["ip"]
 
+        if interface in interfaces_cached:
+            return
+
         # Get state:
         state = None
         for key, value in states_by_interface.items():
             if interface in value:
                 state = key
                 break
+
+        interfaces_cached.append(interface)
 
         return {
             "ip": ip,
@@ -99,10 +103,11 @@ def update_traffic(firstday: str, lastday: str) -> None:
             "group": group,
             "in_avg": avg_traffic(_in),
             "out_avg": avg_traffic(out),
-            "bandwidth": avg_traffic(bw),
+            "bandwidth": max(max(bw)),
         }
 
-    docs = list(map(__get_summary, data))
+    interfaces_cached = []
+    docs = list(filter(lambda x: x != None, map(__get_summary, data)))
 
     client = MongoClient(MONGO_URI_PREVIEWER)
     db = client["planPreviewer"]

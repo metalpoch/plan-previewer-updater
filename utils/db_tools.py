@@ -78,8 +78,12 @@ def avg_traffic(traffic: list[list[float]]) -> float:
     Returns:
     float: The average traffic.
     """
-    max_traffic_by_day = list(map(lambda x: max(x), traffic))
-    return sum(max_traffic_by_day) / len(max_traffic_by_day)
+    max_traffic_by_day = list(filter(lambda x: x > 0, map(lambda x: max(x), traffic)))
+
+    try:
+        return sum(max_traffic_by_day) / len(max_traffic_by_day)
+    except ZeroDivisionError:
+        return 0
 
 
 def aggregate_traffic_aba() -> list[dict]:
