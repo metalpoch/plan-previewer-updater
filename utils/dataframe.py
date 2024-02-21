@@ -25,36 +25,41 @@ def __string_to_ip(string: str) -> str:
     return string[::-1]
 
 
-def __df_by_client_status(
-    df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    df_cut_off = df[["DSLAMIP", "Status", "Cantidad"]][df["Status"] == "CORTADO"]
-    df_cut_off = df_cut_off.groupby(["DSLAMIP"])["Cantidad"].sum().reset_index()
-
-    df_suspended = df[["DSLAMIP", "Status", "Cantidad"]][df["Status"] == "SUSPENDIDO"]
-    df_suspended = df_suspended.groupby(["DSLAMIP"])["Cantidad"].sum().reset_index()
-
-    df_disable = pd.merge(
-        df_cut_off, df_suspended, on="DSLAMIP", suffixes=["_cortado", "_suspendido"]
+def __df_by_client_status(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    # clients active
+    df_active = (
+        df[["DSLAMIP", "Status", "Cantidad"]][df["Status"] == "ACTIVO"]
+        .rename(columns={"Cantidad": "clients_active"})
+        .groupby(["DSLAMIP"])["clients_active"]
+        .sum()
+        .reset_index()
     )
 
-    df_disable.rename(
-        inplace=True,
-        columns={
-            "Cantidad_cortado": "clients_cut_off",
-            "Cantidad_suspendido": "clients_suspended",
-        },
+    # clients cut off
+    df_cut_off = (
+        df[["DSLAMIP", "Status", "Cantidad"]][df["Status"] == "CORTADO"]
+        .rename(columns={"Cantidad": "clients_cut_off"})
+        .groupby(["DSLAMIP"])["clients_cut_off"]
+        .sum()
+        .reset_index()
     )
 
-    df_active = df[df["Status"] == "ACTIVO"]
+    # clients suspend
+    df_suspended = (
+        df[["DSLAMIP", "Status", "Cantidad"]][df["Status"] == "SUSPENDIDO"]
+        .rename(columns={"Cantidad": "clients_suspended"})
+        .groupby(["DSLAMIP"])["clients_suspended"]
+        .sum()
+        .reset_index()
+    )
 
-    df = df_active.groupby(["DSLAMIP", "Downstream"])["Cantidad"].sum().reset_index()
+    # status clients
+    df_status_clients = pd.merge(df_cut_off, df_suspended, on="DSLAMIP", how="outer")
+    df_status_clients = df_status_clients.merge(df_active, on="DSLAMIP", how="outer")
 
-    df_active = df_active[
-        ["bras", "Provider.1", "DSLAMIP", "Name Coid"]
-    ].drop_duplicates("DSLAMIP")
+    df = df.groupby(["DSLAMIP", "Downstream"])["Cantidad"].sum().reset_index()
 
-    return df, df_active, df_disable
+    return df, df_status_clients
 
 
 def get_aba_data(filename: str) -> pd.DataFrame:
@@ -96,7 +101,11 @@ def get_aba_data(filename: str) -> pd.DataFrame:
     ]
     df_base["DSLAMIP"] = df_base["DSLAMIP"].apply(__string_to_ip)
 
-    df, df_active, df_disable = __df_by_client_status(df_base)
+    df, df_status_clients = __df_by_client_status(df_base)
+
+    df_base = df_base[["bras", "Provider.1", "DSLAMIP", "Name Coid"]].drop_duplicates(
+        "DSLAMIP"
+    )
 
     df["Downstream"] = df["Downstream"] / 1024
     df["theoretical_traffic"] = df["Downstream"] * df["Cantidad"]
@@ -112,8 +121,8 @@ def get_aba_data(filename: str) -> pd.DataFrame:
     df = df.groupby(["DSLAMIP"]).sum().reset_index()
     df["clients"] = df.iloc[:, 2:].sum(axis=1)
 
-    df = df.merge(df_active, on="DSLAMIP")
-    df = df.merge(df_disable, on="DSLAMIP")
+    df = df.merge(df_base, on="DSLAMIP")
+    df = df.merge(df_status_clients, on="DSLAMIP")
 
     return df.rename(
         columns={
