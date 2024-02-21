@@ -181,7 +181,10 @@ def __traffic_scanner(data: dict) -> dict:
         "central": data["central"],
         "ip": data["ip"],
         "theoretical_traffic_mbps": data["theoretical_traffic"],
+        "model": data["model"],
         "clients": data["clients"],
+        "clients_cut_off": data["clients_cut_off"],
+        "clients_suspended": data["clients_suspended"],
         "state": state,
     }
 
