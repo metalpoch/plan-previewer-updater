@@ -180,12 +180,14 @@ def __traffic_scanner(data: dict) -> dict:
     result = {
         "central": data["central"],
         "ip": data["ip"],
+        "bras": data["bras"],
         "theoretical_traffic_mbps": data["theoretical_traffic"],
         "model": data["model"],
         "clients": data["clients"],
         "clients_active": data["clients_active"],
         "clients_cut_off": data["clients_cut_off"],
         "clients_suspended": data["clients_suspended"],
+        "port_with_contract": data["port_with_contract"],
         "state": state,
     }
 
@@ -208,7 +210,11 @@ def __traffic_scanner(data: dict) -> dict:
         result["bandwidth_mbps"] = bw / 10**6
 
     max_traffic = max(result["in_avg_mbps"], result["out_avg_mbps"])
-    result["media"] = max_traffic / result["clients_active"]
+    try:
+        result["media"] = max_traffic / result["clients_active"]
+    except ZeroDivisionError:
+        result["media"] = 0
+
     result["factor"] = max_traffic / result["theoretical_traffic_mbps"]
 
     for plan in PLANS_COLUMNS.values():

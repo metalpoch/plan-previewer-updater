@@ -62,7 +62,7 @@ def __df_by_client_status(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]
     return df, df_status_clients
 
 
-def get_aba_data(filename: str) -> pd.DataFrame:
+def get_aba_data(filename_base: str, filename_total: str) -> pd.DataFrame:
     """
     Reads an Excel file and processes the data to return a DataFrame.
 
@@ -72,20 +72,35 @@ def get_aba_data(filename: str) -> pd.DataFrame:
     Returns:
     pd.DataFrame: The processed DataFrame.
     """
-    df_base = pd.read_excel(
-        filename,
-        usecols=[
-            "Coid",
-            "Name Coid",
-            "Provider.1",
-            "DSLAMIP",
-            "Nrpname",
-            "Location",
-            "Downstream",
-            "Status",
-            "Cantidad",
-        ],
+    try:
+        df_total = pd.read_excel(
+            filename_total, usecols=["DSLAMIP", "PUERTOS_CON_CONTRATO"]
+        )
+
+        df_base = pd.read_excel(
+            filename_base,
+            usecols=[
+                "Coid",
+                "Name Coid",
+                "Provider.1",
+                "DSLAMIP",
+                "Nrpname",
+                "Location",
+                "Downstream",
+                "Status",
+                "Cantidad",
+            ],
+        )
+    except BaseException:
+        exit(
+            "Error: los reportes enviados son invalidos, el orden es 'clientes' y luego 'total'"
+        )
+
+    df_total.rename(
+        inplace=True,
+        columns={"DSLAMIP": "ip", "PUERTOS_CON_CONTRATO": "port_with_contract"},
     )
+
     df_base["bras"] = df_base["Location"] + "-" + df_base["Nrpname"]
     df_base = df_base[
         [
@@ -124,11 +139,14 @@ def get_aba_data(filename: str) -> pd.DataFrame:
     df = df.merge(df_base, on="DSLAMIP")
     df = df.merge(df_status_clients, on="DSLAMIP")
 
-    return df.rename(
+    df.rename(
+        inplace=True,
         columns={
             "DSLAMIP": "ip",
             "Provider.1": "model",
             "Name Coid": "central",
             **PLANS_COLUMNS,
-        }
+        },
     )
+
+    return df.merge(df_total, on="ip").fillna(0)

@@ -9,11 +9,11 @@ def main() -> None:
         exit(error.CLI_ARGVS_EMPTY_ERROR)
 
     if argv[1] == options.ABA:
-        if len(argv) < 3:
+        if len(argv) < 4:
             print(error.CLI_ABA_ERROR)
         else:
-            filename = argv[2]
-            df = dataframe.get_aba_data(filename)
+            filename_base, filename_total = argv[2], argv[3]
+            df = dataframe.get_aba_data(filename_base, filename_total)
             database.update_aba(df)
 
     elif argv[1] == options.TRAFFIC:

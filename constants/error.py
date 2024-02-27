@@ -3,9 +3,9 @@ Ejemplo: update-db traffic 20240101 20240107
 """
 
 CLI_ABA_ERROR = """Necesitas pasar el directorio del reporte Registro ABA como argumento
-Ejemplo: update-db ABA "/home/fooziman/documents/Clientes_ABA_Registros_FE24072023.xlsx"
+Ejemplo: update-db aba "/home/fooziman/documents/Clientes_ABA_Registros_FE22022024.xlsx" "/home/fooziman/documents/Totales_Por_Nodos_FE22022024.xlsx"
 """
 
-CLI_ARGVS_EMPTY_ERROR = """Se requiere utilizar uno de los siguientes argumentos: traffic, aba o traffic-aba
+CLI_ARGVS_EMPTY_ERROR = """Se requiere utilizar uno de los siguientes argumentos: aba, aba-total, traffic o traffic-aba
 Ejemplo: update-db traffic-aba
 """
